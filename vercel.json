@@ -1,19 +1,10 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "index.ts",
-      "use": "@vercel/bun"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/v1/chat/completions",
-      "dest": "/index.ts"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.ts"
-    }
+  "framework": null,
+  "buildCommand": "echo skip",
+  "outputDirectory": ".",
+  "installCommand": "bun install",
+  "rewrites": [
+    { "source": "/v1/chat/completions", "destination": "/api/v1/chat/completions" },
+    { "source": "/", "destination": "/api/index" }
   ]
 }

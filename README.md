@@ -4,90 +4,77 @@ OpenAI-compatible proxy for [OpenRouter](https://openrouter.ai) with automatic r
 
 ## Features
 
-- **5x Retry on 500 Errors**: Exponential backoff with jitter (1s → 2s → 4s → 8s → 16s) for 500/502/503/504 responses
-- **BYOK Provider Routing**: Pass a `provider` object to control which provider handles your request (e.g. `{ "provider": { "only": ["google"] } }`)
-- **OpenAI-Compatible**: Drop-in replacement for OpenAI `/v1/chat/completions` endpoint
-- **Streaming Support**: Full SSE passthrough for streaming responses
-- **Attribution Headers**: Forwards `HTTP-Referer` and `X-Title` for OpenRouter rankings
+- **5x Retry on Server Errors**: Exponential backoff with jitter (1s → 2s → 4s → 8s → 16s) for HTTP 500/502/503/504
+- **BYOK Provider Routing**: Pass a `provider` object to control which provider handles your request
+- **OpenAI-Compatible**: Drop-in replacement for `/v1/chat/completions`
+- **SSE Streaming**: Full passthrough for streaming responses
+- **Attribution Headers**: Forwards `HTTP-Referer` and `X-Title` to OpenRouter
 
-## Deploy
+## Deployed
 
-Deploy to Vercel with the `OPENROUTER_API_KEY` environment variable:
-
-```bash
-vercel --prod
-vercel env add OPENROUTER_API_KEY
-```
+**Production**: `https://or-deploy.vercel.app`
 
 ## Usage
 
-### Basic Chat Completion
+### Basic chat completion
 
 ```bash
-curl https://your-proxy.vercel.app/v1/chat/completions \
+curl https://or-deploy.vercel.app/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "openai/gpt-4o",
-    "messages": [{"role": "user", "content": "Hello"}]
+    "model": "openai/gpt-4o-mini",
+    "messages": [{ "role": "user", "content": "Hello" }]
   }'
 ```
 
-### BYOK Provider Routing (Google)
+### BYOK with provider routing
+
+Force OpenRouter to use only your stored Google AI Studio BYOK key:
 
 ```bash
-curl https://your-proxy.vercel.app/v1/chat/completions \
+curl https://or-deploy.vercel.app/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "google/gemini-2.5-flash",
-    "provider": {
-      "only": ["google"]
-    },
-    "messages": [{"role": "user", "content": "Hello"}]
+    "provider": { "only": ["google"] },
+    "messages": [{ "role": "user", "content": "Hello" }]
   }'
 ```
 
-### Provider Routing Options
+### Provider options
 
-The `provider` object supports these fields:
+The `provider` object supports all OpenRouter provider routing fields:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `only` | `string[]` | Only use these providers (e.g. `["google"]`, `["anthropic"]`) |
-| `ignore` | `string[]` | Exclude these providers |
-| `order` | `string[]` | Preferred provider order |
-| `allow_fallbacks` | `boolean` | Allow fallback providers (default: `true`) |
-| `require_parameters` | `boolean` | Only use providers supporting all request params |
-| `data_collection` | `"allow"\|"deny"` | Allow/deny providers that may store data |
-| `sort` | `"price"\|"throughput"\|"latency"` | Sort providers by criteria |
+- `provider.only` — Array of provider slugs to use exclusively
+- `provider.order` — Array of provider slugs in preference order
+- `provider.allow_fallbacks` — Boolean, whether to allow fallback providers
+- `provider.ignore` — Array of provider slugs to skip
+- `provider.quantizations` — Array of preferred quantization levels
 
 ### Streaming
 
 ```bash
-curl https://your-proxy.vercel.app/v1/chat/completions \
+curl https://or-deploy.vercel.app/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "openai/gpt-4o",
+    "model": "openai/gpt-4o-mini",
     "stream": true,
-    "messages": [{"role": "user", "content": "Hello"}]
+    "messages": [{ "role": "user", "content": "Hello" }]
   }'
 ```
 
-### Retry Behavior
+## Configuration
 
-On 500/502/503/504 responses from OpenRouter, the proxy automatically retries up to 5 times with exponential backoff:
+Set `OPENROUTER_API_KEY` as an environment variable in Vercel project settings.
 
-| Retry | Delay |
-|-------|-------|
-| 1 | ~1s |
-| 2 | ~2s |
-| 3 | ~4s |
-| 4 | ~8s |
-| 5 | ~16s |
+## Retry Behavior
 
-Jitter (±500ms) is added to prevent thundering herd.
+| Attempt | Delay (approx) |
+|---------|----------------|
+| 1       | 1s + jitter    |
+| 2       | 2s + jitter    |
+| 3       | 4s + jitter    |
+| 4       | 8s + jitter    |
+| 5       | 16s + jitter   |
 
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPENROUTER_API_KEY` | Yes | Your OpenRouter API key |
+Only HTTP 500, 502, 503, 504 trigger retries. 4xx errors (including 429 rate limits) are returned immediately.

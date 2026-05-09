@@ -1,4 +1,4 @@
-import type { Context } from "hono";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const OPENROUTER_API_BASE = "https://openrouter.ai/api/v1";
 const MAX_RETRIES = 5;
@@ -40,17 +40,31 @@ async function fetchWithRetry(
   return lastResponse!;
 }
 
-export default async (c: Context) => {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
+  if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, HTTP-Referer, X-Title");
+    return res.status(204).end();
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed", hint: "POST to /v1/chat/completions" });
+  }
+
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
-    return c.json({ error: "OPENROUTER_API_KEY not configured" }, 500);
+    return res.status(500).json({ error: "OPENROUTER_API_KEY not configured" });
   }
 
   let body: Record<string, unknown>;
   try {
-    body = await c.req.json();
+    body = typeof req.body === "object" && req.body !== null ? req.body : JSON.parse(req.body);
   } catch {
-    return c.json({ error: "Invalid JSON body" }, 400);
+    return res.status(400).json({ error: "Invalid JSON body" });
   }
 
   const { provider, ...rest } = body;
@@ -67,10 +81,10 @@ export default async (c: Context) => {
     "Content-Type": "application/json",
   };
 
-  const httpReferer = c.req.header("HTTP-Referer");
+  const httpReferer = req.headers["http-referer"] as string | undefined;
   if (httpReferer) headers["HTTP-Referer"] = httpReferer;
 
-  const xTitle = c.req.header("X-Title");
+  const xTitle = req.headers["x-title"] as string | undefined;
   if (xTitle) headers["X-Title"] = xTitle;
 
   const upstreamUrl = `${OPENROUTER_API_BASE}/chat/completions`;
@@ -82,15 +96,27 @@ export default async (c: Context) => {
       body: JSON.stringify(upstreamBody),
     });
 
+    res.setHeader("Access-Control-Allow-Origin", "*");
+
     if (isStream && response.ok && response.body) {
-      return new Response(response.body, {
-        status: response.status,
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-        },
-      });
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          res.write(chunk);
+        }
+      } catch (streamErr) {
+        console.error("[proxy] stream error:", streamErr);
+      }
+      return res.end();
     }
 
     const data = await response.text();
@@ -98,15 +124,13 @@ export default async (c: Context) => {
     try {
       parsed = JSON.parse(data);
     } catch {
-      return new Response(data, { status: response.status });
+      res.setHeader("Content-Type", "application/json");
+      return res.status(response.status).json({ raw: data });
     }
 
-    return c.json(parsed, response.status as 200);
+    return res.status(response.status).json(parsed);
   } catch (err) {
     console.error("[proxy] fatal error:", err);
-    return c.json(
-      { error: "Proxy request failed", detail: String(err) },
-      502
-    );
+    return res.status(502).json({ error: "Proxy request failed", detail: String(err) });
   }
-};
+}
