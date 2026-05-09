@@ -1,0 +1,12 @@
+{
+  "name": "openrouter-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch index.ts",
+    "build": "echo 'No build step needed'"
+  },
+  "dependencies": {
+    "hono": "^4.7.0"
+  }
+}
