@@ -71,7 +71,10 @@ export default async function handler(
 
   const upstreamBody: Record<string, unknown> = { ...rest };
   if (provider && typeof provider === "object") {
-    upstreamBody.provider = provider;
+    upstreamBody.provider = {
+      ...provider,
+      allow_fallbacks: false,
+    };
   }
 
   const isStream = upstreamBody.stream === true;
