@@ -2,13 +2,5 @@
   "name": "openrouter-proxy",
   "version": "1.0.0",
   "description": "OpenRouter proxy with key rotation on 429s",
-  "main": "index.ts",
-  "scripts": {
-    "dev": "vercel dev",
-    "build": "vercel build",
-    "deploy": "vercel --prod"
-  },
-  "devDependencies": {
-    "@vercel/node": "^3.0.0"
-  }
+  "private": true
 }
