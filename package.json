@@ -1,6 +1,7 @@
 {
   "name": "openrouter-proxy",
   "version": "1.0.0",
-  "description": "OpenRouter proxy with key rotation on 429s",
-  "private": true
+  "description": "OpenRouter proxy with automatic key rotation on 429s",
+  "private": true,
+  "type": "module"
 }
